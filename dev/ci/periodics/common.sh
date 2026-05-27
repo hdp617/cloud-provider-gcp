@@ -15,4 +15,4 @@
 # limitations under the License.
 
 # Common E2E test skip regex to avoid duplication across periodic scripts.
-export KOPS_SKIP_REGEX='\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]|\[Driver: nfs\]|\[Driver: nfs3\]|NFS|Flexvolumes|Services should function for service endpoints using hostNetwork|RuntimeClass should run a Pod requesting a RuntimeClass with scheduling without taints'
+export KOPS_SKIP_REGEX='\[Slow\]|\[Serial\]|\[Disruptive\]|\[Flaky\]|\[Feature:.+\]|\[Driver: nfs\]|\[Driver: nfs3\]|NFS|Flexvolumes|Services should function for service endpoints using hostNetwork|RuntimeClass should run a Pod requesting a RuntimeClass with scheduling without taints|volume-expand'
