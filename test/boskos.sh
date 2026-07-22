@@ -35,22 +35,37 @@ fi
 acquire_project() {
     local project=""
     local project_type="gce-project"
+    local max_attempts=5
+    local attempt=1
+    local sleep_seconds=60
 
-    boskos_response=$(curl -X POST "${BOSKOS_URL}/acquire?type=${project_type}&state=free&dest=busy&owner=${JOB_NAME}")
-    echo
-    echo "DEBUG--Boskos Response: ${boskos_response}"
-    echo
-    if project=$(echo "${boskos_response}" | jq -r '.name'); then
-        echo "Using GCP project: ${project}"
-        PROJECT="${project}"
-        export PROJECT
-        heartbeat_project_forever &
-        BOSKOS_HEARTBEAT_PID=$!
-        export BOSKOS_HEARTBEAT_PID
-    else
-        (>&2 echo "ERROR: failed to acquire GCP project. boskos response was: ${boskos_response}")
-        exit 1
-    fi
+    while (( attempt <= max_attempts )); do
+        echo "Attempt ${attempt} to acquire GCP project from boskos..."
+        boskos_response=$(curl -s -X POST "${BOSKOS_URL}/acquire?type=${project_type}&state=free&dest=busy&owner=${JOB_NAME}")
+        echo "DEBUG--Boskos Response: ${boskos_response}"
+        
+        if [[ "${boskos_response}" =~ "name" ]]; then
+            if project=$(echo "${boskos_response}" | jq -r '.name' 2>/dev/null) && [[ -n "${project}" && "${project}" != "null" ]]; then
+                echo "Using GCP project: ${project}"
+                PROJECT="${project}"
+                export PROJECT
+                heartbeat_project_forever &
+                BOSKOS_HEARTBEAT_PID=$!
+                export BOSKOS_HEARTBEAT_PID
+                return 0
+            fi
+        fi
+
+        echo "Failed to acquire project on attempt ${attempt}."
+        if (( attempt < max_attempts )); then
+            echo "Sleeping for ${sleep_seconds} seconds before retrying..."
+            sleep ${sleep_seconds}
+        fi
+        (( attempt++ ))
+    done
+
+    (>&2 echo "ERROR: failed to acquire GCP project after ${max_attempts} attempts. Last response was: ${boskos_response}")
+    exit 1
 }
 
 # release the project back to boskos
