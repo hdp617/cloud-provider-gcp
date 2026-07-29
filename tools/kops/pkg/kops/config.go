@@ -37,6 +37,7 @@ type Config struct {
 	KopsBin                 string
 	KopsBaseURL             string
 	StateStore              string
+	StagingStore            string
 	TemplateSrc             string
 	TemplatePath            string
 	AdminAccess             string
@@ -64,6 +65,7 @@ func NewConfigFromEnv() (*Config, error) {
 		KopsBin:                 os.Getenv("KOPS_BIN"),
 		KopsBaseURL:             os.Getenv("KOPS_BASE_URL"),
 		StateStore:              os.Getenv("KOPS_STATE_STORE"),
+		StagingStore:            os.Getenv("KOPS_STAGING_BUCKET"),
 		TemplateSrc:             os.Getenv("KOPS_TEMPLATE_SRC"),
 		TemplatePath:            os.Getenv("KOPS_TEMPLATE"),
 		AdminAccess:             os.Getenv("ADMIN_ACCESS"),

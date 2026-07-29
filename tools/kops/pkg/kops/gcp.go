@@ -33,13 +33,29 @@ func EnsureStateStore(c *Config) error {
 	}
 
 	fmt.Printf("Ensuring KOPS_STATE_STORE exists: %s\n", c.StateStore)
+	return ensureBucket(c.StateStore, c.GCPProject, c.GCPLocation)
+}
 
-	// Check if bucket exists
-	lsCmd := exec.Command("gsutil", "ls", "-p", c.GCPProject, c.StateStore)
+// EnsureStagingStore ensures the GCS bucket for kOps staging exists and has correct settings.
+func EnsureStagingStore(c *Config) error {
+	if c.StagingStore == "" {
+		if c.GCPProject == "" {
+			return fmt.Errorf("GCP_PROJECT must be set if KOPS_STAGING_BUCKET is not provided")
+		}
+		c.StagingStore = fmt.Sprintf("gs://kops-staging-%s", c.GCPProject)
+	}
+
+	fmt.Printf("Ensuring KOPS_STAGING_BUCKET exists: %s\n", c.StagingStore)
+	return ensureBucket(c.StagingStore, c.GCPProject, c.GCPLocation)
+}
+
+func ensureBucket(bucketPath, project, location string) error {
+	// Check if bucket exists: gcloud storage ls --buckets --project=<project> <bucket>
+	lsCmd := exec.Command("gcloud", "storage", "ls", "--buckets", "--project="+project, bucketPath)
 	if err := lsCmd.Run(); err != nil {
-		// Assume it doesn't exist, try to create it
-		fmt.Printf("Bucket %s does not exist, creating...\n", c.StateStore)
-		mbCmd := exec.Command("gsutil", "mb", "-p", c.GCPProject, "-l", c.GCPLocation, c.StateStore)
+		// Assume it doesn't exist, try to create it: gcloud storage buckets create --project=<project> --location=<location> <bucket>
+		fmt.Printf("Bucket %s does not exist, creating...\n", bucketPath)
+		mbCmd := exec.Command("gcloud", "storage", "buckets", "create", "--project="+project, "--location="+location, bucketPath)
 		mbCmd.Stdout = os.Stdout
 		mbCmd.Stderr = os.Stderr
 		if err := mbCmd.Run(); err != nil {
@@ -47,8 +63,8 @@ func EnsureStateStore(c *Config) error {
 		}
 	}
 
-	// Disable uniform bucket-level access
-	ublaCmd := exec.Command("gsutil", "ubla", "set", "off", c.StateStore)
+	// Disable uniform bucket-level access: gcloud storage buckets update <bucket> --no-uniform-bucket-level-access
+	ublaCmd := exec.Command("gcloud", "storage", "buckets", "update", bucketPath, "--no-uniform-bucket-level-access")
 	ublaCmd.Stdout = os.Stdout
 	ublaCmd.Stderr = os.Stderr
 	if err := ublaCmd.Run(); err != nil {
@@ -56,7 +72,6 @@ func EnsureStateStore(c *Config) error {
 	}
 
 	// Grant storage.admin to the current account
-	// SA=$(gcloud config list --format 'value(core.account)')
 	saCmd := exec.Command("gcloud", "config", "list", "--format", "value(core.account)")
 	saBytes, err := saCmd.Output()
 	if err != nil {
@@ -64,14 +79,13 @@ func EnsureStateStore(c *Config) error {
 	}
 	sa := strings.TrimSpace(string(saBytes))
 
-	iamCmd := exec.Command("gsutil", "iam", "ch", fmt.Sprintf("serviceAccount:%s:admin", sa), c.StateStore)
+	// Grant roles/storage.admin: gcloud storage buckets add-iam-policy-binding --member=<member> --role=roles/storage.admin <bucket>
+	iamCmd := exec.Command("gcloud", "storage", "buckets", "add-iam-policy-binding", fmt.Sprintf("--member=serviceAccount:%s", sa), "--role=roles/storage.admin", bucketPath)
 	iamCmd.Stdout = os.Stdout
 	iamCmd.Stderr = os.Stderr
 	if err := iamCmd.Run(); err != nil {
-		// This might fail if the account is not a service account (e.g. user account)
-		// The bash script assumes serviceAccount:
-		fmt.Printf("Warning: failed to grant storage.admin to %s: %v. Retrying with user account...\n", sa, err)
-		iamUserCmd := exec.Command("gsutil", "iam", "ch", fmt.Sprintf("user:%s:admin", sa), c.StateStore)
+		fmt.Printf("Warning: failed to grant storage.admin to serviceAccount %s: %v. Retrying with user account...\n", sa, err)
+		iamUserCmd := exec.Command("gcloud", "storage", "buckets", "add-iam-policy-binding", fmt.Sprintf("--member=user:%s", sa), "--role=roles/storage.admin", bucketPath)
 		iamUserCmd.Stdout = os.Stdout
 		iamUserCmd.Stderr = os.Stderr
 		if err := iamUserCmd.Run(); err != nil {

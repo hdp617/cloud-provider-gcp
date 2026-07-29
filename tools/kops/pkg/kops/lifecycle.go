@@ -29,6 +29,9 @@ func Up(c *Config) error {
 	if err := EnsureStateStore(c); err != nil {
 		return err
 	}
+	if err := EnsureStagingStore(c); err != nil {
+		return err
+	}
 	if err := EnsureSSHKey(c); err != nil {
 		return err
 	}
@@ -160,6 +163,7 @@ func runKubetest2(c *Config, args []string) error {
 
 	// Ensure critical variables are in the environment for the subprocess
 	setEnvIfNotEmpty(cmd, "KOPS_STATE_STORE", c.StateStore)
+	setEnvIfNotEmpty(cmd, "KOPS_STAGING_BUCKET", c.StagingStore)
 	setEnvIfNotEmpty(cmd, "GCP_PROJECT", c.GCPProject)
 	setEnvIfNotEmpty(cmd, "K8S_VERSION", c.K8sVersion)
 	setEnvIfNotEmpty(cmd, "KOPS_BASE_URL", c.KopsBaseURL)
